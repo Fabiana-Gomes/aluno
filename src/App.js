@@ -1,37 +1,35 @@
-import React, { useState } from 'react';
-import io from 'socket.io-client';
-import SimplePeer from 'simple-peer';
+// importações realizadas para utilização no código
+import React, { useEffect, useState } from 'react';
+import initializeWebRTC from './webrtc';
 
-const App = () => {
+// funções para inicializar o compartilhamento de tela
+function App() {
   const [isSharing, setIsSharing] = useState(false);
-  const [socket, setSocket] = useState(null);
-  let peer = null;
+  const { startScreenShare } = initializeWebRTC(); 
 
-  const startSharing = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      setSocket(io('http://192.168.1.46:8000')); // Conectar ao servidor
+  // Limpar eventuais recursos ao desmontar o componente, se necessário
+  useEffect(() => {
+    return () => {
+    };
+  }, []);
 
-      peer = new SimplePeer({ initiator: true, trickle: false, stream });
-
-      peer.on('signal', (data) => {
-        socket.emit('offer', { signal: data });
-      });
-
-      setIsSharing(true);
-    } catch (error) {
-      console.error('Erro ao iniciar o compartilhamento de tela:', error);
-    }
+  // ao clicar no botão de compartilhar tela esta função inicia
+  const handleShareScreen = () => {
+    startScreenShare();
+    setIsSharing(true);
   };
 
   return (
-    <div>
-      <h1>Aluno - Compartilhamento de Tela</h1>
-      {!isSharing && (
-        <button onClick={startSharing}>Iniciar Compartilhamento</button>
-      )}
+    <div className="App">
+      <header className="App-header">
+        <h1>Aplicação do Aluno</h1>
+        <button onClick={handleShareScreen} disabled={isSharing}>
+          {isSharing ? 'Compartilhando...' : 'Iniciar Compartilhamento'}
+        </button>
+        {isSharing && <p>Compartilhando tela com o servidor</p>}
+      </header>
     </div>
   );
-};
+}
 
 export default App;
