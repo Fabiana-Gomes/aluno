@@ -2,8 +2,7 @@ import io from 'socket.io-client';
 import SimplePeer from 'simple-peer';
 
 const initializeWebRTC = () => {
-  let socket = io('http://192.168.1.46:8000'); // Inicialize o socket aqui
-  let screenStream = null;
+  let socket = io('http://192.168.1.46:8000');
   let isSharingScreen = false;
   let peerConnection = null;
 
@@ -27,21 +26,13 @@ const initializeWebRTC = () => {
         audio: false,
       });
       isSharingScreen = true;
-
-      // Criar uma nova conexão WebRTC
       peerConnection = new RTCPeerConnection();
-
-      // Adicionar stream de tela à conexão
       screenStream.getTracks().forEach(track => peerConnection.addTrack(track, screenStream));
-
-      // Enviar oferta para o servidor
       peerConnection.createOffer().then(offer => {
         return peerConnection.setLocalDescription(offer);
       }).then(() => {
         socket.emit('offer', { sdp: peerConnection.localDescription });
       });
-
-      // Configurar manipuladores de eventos
       socket.on('answer', (data) => {
         peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
       });
