@@ -1,13 +1,25 @@
-// importações realizadas para utilização no código
 import io from 'socket.io-client';
+import SimplePeer from 'simple-peer';
 
-// lógica para lidar com WebRTC 
 const initializeWebRTC = () => {
-  let socket; null;
+  let socket = io('http://192.168.1.46:8000'); // Inicialize o socket aqui
   let screenStream = null;
   let isSharingScreen = false;
+  let peerConnection = null;
 
-  // Lógica para capturar a mídia de tela
+  socket.on('connect', () => {
+    console.log('Conectado ao servidor Socket.IO');
+    socket.emit('identify', { type: 'student' });
+  });
+
+  socket.on('connect_error', (err) => {
+    console.error('Erro na conexão do Socket.IO:', err);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Socket desconectado');
+  });
+
   const captureScreen = async () => {
     try {
       screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -16,47 +28,54 @@ const initializeWebRTC = () => {
       });
       isSharingScreen = true;
 
-      // Conecta ao servidor apenas quando captura a tela
-      socket = io('http://192.168.1.46:8000'); // Inicialize o socket aqui
-      socket.on('connect', () => {
-        console.log('Conectado ao servidor Socket.IO');
-        socket.emit('identify', { type: 'student' });
-        socket.emit('shareScreen', screenStream); // Envia o stream de tela para o servidor
+      // Criar uma nova conexão WebRTC
+      peerConnection = new RTCPeerConnection();
+
+      // Adicionar stream de tela à conexão
+      screenStream.getTracks().forEach(track => peerConnection.addTrack(track, screenStream));
+
+      // Enviar oferta para o servidor
+      peerConnection.createOffer().then(offer => {
+        return peerConnection.setLocalDescription(offer);
+      }).then(() => {
+        socket.emit('offer', { sdp: peerConnection.localDescription });
       });
 
-      // Monitorar desconexão
-      socket.on('disconnect', () => {
-        console.log('Socket desconectado');
+      // Configurar manipuladores de eventos
+      socket.on('answer', (data) => {
+        peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
       });
 
-    //stream de tela localmente
-      const localVideo = document.createElement('video');
-      localVideo.srcObject = screenStream;
-      localVideo.autoplay = true;
-      localVideo.muted = true; 
-      document.body.appendChild(localVideo);
+      peerConnection.ontrack = (event) => {
+        console.log('Stream recebido:', event.streams[0]);
+        const remoteVideo = document.createElement('video');
+        remoteVideo.srcObject = event.streams[0];
+        remoteVideo.autoplay = true;
+        remoteVideo.muted = true;
+        document.body.appendChild(remoteVideo);
+      };
+
     } catch (err) {
       console.error('Erro ao capturar a tela:', err);
     }
   };
 
-  const sendTestMessage = (message) => {
-    if (socket && socket.connected) {
-      console.log('Enviando mensagem:', message);
-      socket.emit('studentMessage', { message });
-    } else {
-      console.error('Socket não está conectado. Não foi possível enviar a mensagem:', message);
-    }
-  };   
-  
-  // Lógica para iniciar o compartilhamento de tela quando solicitado
   const startScreenShare = () => {
     if (!isSharingScreen) {
       captureScreen();
     }
   };
 
-  return { startScreenShare, sendTestMessage }; // Retorna a função startScreenShare
+  const sendTestMessage = (message) => {
+    if (socket.connected) {
+      console.log('Enviando mensagem:', message);
+      socket.emit('studentMessage', { message });
+    } else {
+      console.error('Socket não está conectado. Não foi possível enviar a mensagem:', message);
+    }
+  };
+
+  return { startScreenShare, sendTestMessage };
 };
 
 export default initializeWebRTC;
